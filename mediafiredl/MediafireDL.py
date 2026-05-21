@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 # Import required modules
 import requests
 import os
+import time
 import sys
 
 # Import retry system
@@ -12,12 +13,10 @@ from urllib3.util.retry import Retry
 
 
 # Create reusable session
-# Session keeps connections alive and behaves more browser-like
 session = requests.Session()
 
 
 # Fake browser headers
-# Very important because MediaFire blocks simple python requests sometimes
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -27,58 +26,61 @@ HEADERS = {
 }
 
 
-# Configure retry logic
-# Helps recover from random SSL disconnects
+# Retry config
 retry = Retry(
-    total=5, # retry 5 times
-    backoff_factor=1, # wait time between retries
-    allowed_methods=["GET"] # retry GET requests only
+    total=5, # retry failed requests 5 times
+    backoff_factor=1, # delay between retries
+    allowed_methods=["GET"] # retry only GET requests
 )
 
 
-# Attach retry handler to HTTPS requests
+# Enable retries for HTTPS
 adapter = HTTPAdapter(max_retries=retry)
 
 # Mount adapter into session
 session.mount("https://", adapter)
 
 
-# Get file name from URL
+# Get filename from MediaFire page URL
 def GetName(url: str):
 
-    # Take second last part of URL
-    return url.split('/')[-2]
+    # Split URL and take second last part
+    return url.split("/")[-2]
 
 
-# Extract real MediaFire download link
+# Extract real MediaFire direct link
 def GetFileLink(url: str):
 
     try:
 
-        # Download HTML page with headers + timeout
+        # Download MediaFire HTML page
         response = session.get(
             url,
             headers=HEADERS,
             timeout=30
         )
 
-        # Raise exception if failed
+        # Raise error if request failed
         response.raise_for_status()
 
         # Parse HTML
-        soup = BeautifulSoup(response.content, "html.parser")
+        soup = BeautifulSoup(
+            response.content,
+            "html.parser"
+        )
 
-        # Find download button
-        link = soup.find(id="downloadButton").get("href")
+        # Find download button href
+        link = soup.find(
+            id="downloadButton"
+        ).get("href")
 
         return link
 
     except Exception as e:
 
-        # Print error
         print(f"[GetFileLink Error] {e}")
 
-        return e
+        return None
 
 
 # Get remote file size
@@ -86,23 +88,27 @@ def GetFileSize(url: str):
 
     try:
 
-        # Get direct link first
+        # Get direct download URL
         direct_link = GetFileLink(url)
 
-        # Request file headers only
+        # Request file headers
         with session.get(
             direct_link,
             headers=HEADERS,
             stream=True,
-            timeout=30,
-            verify=True # keep SSL verification enabled
+            timeout=30
         ) as r:
 
-            # Raise error if request failed
+            # Raise HTTP errors
             r.raise_for_status()
 
-            # Return file size
-            return int(r.headers.get('content-length', 0))
+            # Return content length
+            return int(
+                r.headers.get(
+                    "content-length",
+                    0
+                )
+            )
 
     except Exception as e:
 
@@ -111,10 +117,13 @@ def GetFileSize(url: str):
         return 0
 
 
-# Convert bytes into megabytes
+# Convert bytes into MB
 def AsMegabytes(bytes: int):
 
-    return round(bytes / 1024 / 1024, 2)
+    return round(
+        bytes / 1024 / 1024,
+        2
+    )
 
 
 # Download multiple files
@@ -126,8 +135,10 @@ def BulkDownload(urls: list):
     print("[Bulk downloading files]")
     print(f"Total files: {total_files}")
 
-    # Initial progress text
-    sys.stdout.write("Total size: Analyzing...")
+    # Show analyzing text
+    sys.stdout.write(
+        "Total size: Analyzing..."
+    )
 
     total_bulk_size = 0
 
@@ -137,38 +148,45 @@ def BulkDownload(urls: list):
         total_bulk_size += GetFileSize(url)
 
         sys.stdout.write(
-            f"\x1b[2K\rTotal size: {AsMegabytes(total_bulk_size)}mb"
+            f"\x1b[2K\rTotal size: "
+            f"{AsMegabytes(total_bulk_size)}mb"
         )
 
         sys.stdout.flush()
 
     sys.stdout.write("\n")
 
-    # Download files one by one
+    # Download all files
     for url in urls:
 
         Download(url)
 
 
 # Main download function
-def Download(url: str, output="", filename=""):
+def Download(
+    url: str,
+    output="",
+    filename=""
+):
 
-    # Auto filename if empty
+    # Auto filename
     if not filename:
 
         filename = GetName(url)
 
-    # Get real direct link
+    # Get real download URL
     url = GetFileLink(url)
 
-    # Use current folder if output empty
+    # Use current directory if output empty
     if not output:
 
-        output = os.path.dirname(os.path.realpath(__file__))
+        output = os.path.dirname(
+            os.path.realpath(__file__)
+        )
 
     try:
 
-        # Open download stream
+        # Open download request
         with session.get(
             url,
             headers=HEADERS,
@@ -176,62 +194,125 @@ def Download(url: str, output="", filename=""):
             timeout=30
         ) as r:
 
-            # Raise error if failed
+            # Raise HTTP errors
             r.raise_for_status()
 
-            # Open local output file
-            with open(f"{output}/{filename}", "wb") as f:
-
-                # Get total file size
-                total_length = int(
-                    r.headers.get('content-length', 0)
+            # Total file size
+            total_length = int(
+                r.headers.get(
+                    "content-length",
+                    0
                 )
+            )
 
-                # Current downloaded size
-                download_progress = 0
+            # Downloaded bytes counter
+            download_progress = 0
+
+            # Start timer ONCE
+            start = time.time()
+
+            # Open output file
+            with open(
+                f"{output}/{filename}",
+                "wb"
+            ) as f:
 
                 # Download chunks
-                for chunk in r.iter_content(chunk_size=1024 * 64):
+                for chunk in r.iter_content(
+                    chunk_size=1024 * 64
+                ):
 
                     # Skip empty chunks
                     if not chunk:
 
                         continue
 
-                    # Update downloaded bytes
-                    download_progress += len(chunk)
-
-                    # Write chunk into file
+                    # Save chunk
                     f.write(chunk)
 
-                    # Calculate progress %
+                    # Increase progress
+                    download_progress += len(chunk)
+
+                    # Elapsed seconds
+                    elapsed = (
+                        time.time() - start
+                    )
+
+                    # Prevent divide by zero
+                    if elapsed <= 0:
+
+                        elapsed = 0.001
+
+                    # Percentage
                     percentage = int(
-                        100 * download_progress / total_length
+                        (
+                            download_progress /
+                            total_length
+                        ) * 100
                     ) if total_length else 0
 
                     # Current downloaded MB
                     mb_progress = round(
-                        download_progress / 1024 / 1024,
+                        download_progress /
+                        1024 / 1024,
                         2
                     )
 
                     # Total MB
                     mb_total_progress = round(
-                        total_length / 1024 / 1024,
+                        total_length /
+                        1024 / 1024,
                         2
                     )
 
-                    # Print progress
+                    # Bytes per second
+                    bytes_speed = (
+                        download_progress /
+                        elapsed
+                    )
+
+                    # Speed MB/s
+                    speed = round(
+                        bytes_speed /
+                        1024 / 1024,
+                        2
+                    )
+
+                    # ETA seconds
+                    eta = round(
+                        (
+                            total_length -
+                            download_progress
+                        ) / bytes_speed,
+                        2
+                    ) if bytes_speed > 0 else 0
+
+                    # Console progress
                     sys.stdout.write(
                         f"\r[Downloading {filename}] "
                         f"{percentage}% "
-                        f"({mb_progress}mb/{mb_total_progress}mb)"
+                        f"({mb_progress}mb/"
+                        f"{mb_total_progress}mb) "
+                        f"{speed} MB/s "
+                        f"ETA: {eta}s"
                     )
 
                     sys.stdout.flush()
 
+                    # Return live data
+                    yield (
+                        filename,
+                        percentage,
+                        speed,
+                        eta,
+                        mb_progress,
+                        mb_total_progress
+                    )
+
+        # New line after download
         sys.stdout.write("\n")
 
+        # Return final filepath
         return f"{output}/{filename}"
 
     except Exception as e:
