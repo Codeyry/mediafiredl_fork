@@ -1,72 +1,96 @@
-# MediafireDL
+# mediafiredl_fork
 
-MediafireDL is an automation tool to download files from mediafire without having to do any extra steps, which allows you to retrieve data from any mediafire link.
+A simple Python package for downloading files from MediaFire links.
 
-I designed this to make it work on a python console application, multi threading is not supported for now, but my goal is to make it easy to download and show progress trough GUI frameworks like kivy or pyqt5.
+This fork adds small changes to make requests look more like a normal browser and exposes progress data so it can be used in CLI apps, Telegram bots, Discord bots, and other tools.
 
-You can use the following file as a test, however it will be removed soon. <br>
-[Go to test file.](https://www.mediafire.com/file/ipnyzofjcwri357/test-10mb.bin/file)
+## Features
 
-## What can it do?
-MediafireDL allows you to: <br>
-* Get file size. <br>
-* Get file name. <br>
-* Get true file link. <br>
-* Download a file. <br>
-* Bulk download files. <br>
-
-directly from a single URL.
-
-## Requirements
-This module uses `beautifulsoup4` and `requests`, if you do not have these modules installed, they will install automatically.
+- Get the file name from a MediaFire link
+- Get the direct download link
+- Get the file size
+- Convert bytes to megabytes
+- Download one file
+- Download multiple files
+- Read live download progress data
 
 ## Installation
+
 ```bash
-pip install mediafiredl
+pip install mediafiredl-fork
 ```
 
-## Importing
-```python
-from mediafiredl import MediafireDL
-```
+## Requirements
 
-## Available functions
+- `beautifulsoup4==4.14.3`
+- `requests==2.33.1`
+- `urllib3==2.6.3`
+
+## Usage
+
 ```python
-from mediafiredl import MediafireDL as MF
+from mediafiredl_fork import Download, GetName, GetFileLink, GetFileSize, AsMegabytes
 
 url = "https://www.mediafire.com/file/ipnyzofjcwri357/test-10mb.bin/file"
 
-# Returns a string with the file name, including its extension.
-file_name = MF.GetName(url)
+file_name = GetName(url)
+file_link = GetFileLink(url)
+file_size = GetFileSize(url)
+file_size_mb = AsMegabytes(file_size)
 
-# Returns true file link
-file_link = MF.GetFileLink(url)
+print(file_name)
+print(file_link)
+print(file_size_mb)
+```
 
-# Returns file size in bytes
-file_size = MF.GetFileSize(url)
+## Download A File
 
-# Returns the conversion from bytes to megabytes
-file_size_mb = MF.AsMegabytes(file_size)
+```python
+from mediafiredl_fork import Download
 
-# Downloads a file to local directory and returns its download path. A second argument can be used to assign the output directory, it must not end with a "\".
-file_result = MF.Download(url)
-# Custom output example:
-file_result = MF.Download(url, "C:\\Users\\User\\Desktop")
-#or
-file_result = MF.Download(url, output="C:\\Users\\User\\Desktop")
+url = "https://www.mediafire.com/file/ipnyzofjcwri357/test-10mb.bin/file"
 
+for progress in Download(url):
+    filename, percentage, speed, eta, downloaded_mb, total_mb = progress
+    print(filename, percentage, speed, eta, downloaded_mb, total_mb)
+```
 
-# Bulk file downloads
+## Custom Output
+
+```python
+from mediafiredl_fork import Download
+
+url = "https://www.mediafire.com/file/ipnyzofjcwri357/test-10mb.bin/file"
+
+for progress in Download(url, output="C:\\Users\\User\\Desktop"):
+    print(progress)
+```
+
+## Bulk Download
+
+```python
+from mediafiredl_fork import BulkDownload
+
 bulk_urls = [
     "url1",
     "url2",
     "url3",
-    "url4"
 ]
 
-# Displays how many files you will be downloading and the total size.
-# After displaying this information, it will start downloading the files one by one.
-MF.BulkDownload(bulk_urls)
-
-
+BulkDownload(bulk_urls)
 ```
+
+## Contact
+
+- Telegram: `Codeyry`
+- GitHub: `Codeyry`
+
+## License
+
+This project is free to use, edit, and fork for personal, educational, and non-commercial use.
+
+You cannot sell this project, sell modified versions, use it in paid/commercial products, remove author credit, or use it for illegal activity. See [LICENSE](LICENSE) for details.
+
+## Note
+
+Use this package only for files you are allowed to download.

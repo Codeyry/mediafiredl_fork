@@ -1,3 +1,17 @@
-dist
-mediafiredl/__pycache__
-mediafiredl.egg-info
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and package outputs
+build/
+dist/
+*.egg-info/
+
+# Local environments
+.venv/
+venv/
+env/
+
+# Local test scripts
+gg.py
